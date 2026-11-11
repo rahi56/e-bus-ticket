@@ -5,6 +5,7 @@ import com.example.ticket_booking_system.dto.BookingRequest;
 import com.example.ticket_booking_system.entity.Booking;
 import com.example.ticket_booking_system.entity.Passenger;
 import com.example.ticket_booking_system.entity.Trip;
+import com.example.ticket_booking_system.exception.PassengerNotFoundException;
 import com.example.ticket_booking_system.repository.BookingRepository;
 import com.example.ticket_booking_system.repository.PassengerRepository;
 import com.example.ticket_booking_system.repository.TripRepository;
@@ -47,8 +48,7 @@ public class BookingService {
 
         Passenger passenger = passengerRepository
                 .findById(request.getPassengerId())
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND,
+                .orElseThrow(() -> new PassengerNotFoundException(
                         "Passenger not found with id: " + request.getPassengerId()
                 ));
 

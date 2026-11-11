@@ -1,7 +1,13 @@
 
 package com.example.ticket_booking_system.exception;
 
-import org.springframework.http.HttpStatus;
+import com.example.ticket_booking_system.dto.ApiError;
+
+import jakarta.servlet.http.HttpServletRequest;
+import com.example.ticket_booking_system.exception.PassengerNotFoundException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -9,44 +15,93 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.util.List;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    private static final Logger log =
+            LoggerFactory.getLogger(GlobalExceptionHandler.class);
+    // HANDLE RESPONSE STATUS EXCEPTIONS
     @ExceptionHandler(ResponseStatusException.class)
-    public ResponseEntity<Map<String, Object>> handleResponseStatusException(
-            ResponseStatusException ex) {
+    public ResponseEntity<ApiError> handleResponseStatusException(
+            ResponseStatusException ex,
+            HttpServletRequest request) {
 
-        HttpStatus status = HttpStatus.valueOf(ex.getStatusCode().value());
+        HttpStatusCode status = ex.getStatusCode();
 
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("status", status.value());
-        body.put("error", status.getReasonPhrase());
-        body.put("message", ex.getReason());
-        body.put("timestamp", LocalDateTime.now());
+        String errorMessage = ex.getReason() != null
+                ? ex.getReason()
+                : "Request failed";
 
-        return ResponseEntity.status(status).body(body);
+        ApiError apiError = new ApiError(
+                LocalDateTime.now(),
+                status.value(),
+                status.toString(),
+                List.of(errorMessage),
+                request.getRequestURI()
+        );
+
+        return ResponseEntity.status(status).body(apiError);
     }
 
+    // HANDLE VALIDATION EXCEPTIONS
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<Map<String, Object>> handleValidationException(
-            MethodArgumentNotValidException ex) {
+    public ResponseEntity<ApiError> handleValidationException(
+            MethodArgumentNotValidException ex,
+            HttpServletRequest request) {
 
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("status", HttpStatus.BAD_REQUEST.value());
-        body.put("error", "Bad Request");
-        body.put(
-                "message",
-                ex.getBindingResult()
-                        .getFieldErrors()
-                        .stream()
-                        .map(error -> error.getField() + ": " + error.getDefaultMessage())
-                        .toList()
+        List<String> validationErrors = ex.getBindingResult()
+                .getFieldErrors()
+                .stream()
+                .map(error ->
+                        error.getField() + ": " + error.getDefaultMessage()
+                )
+                .toList();
+
+        ApiError apiError = new ApiError(
+                LocalDateTime.now(),
+                400,
+                "Bad Request",
+                validationErrors,
+                request.getRequestURI()
         );
-        body.put("timestamp", LocalDateTime.now());
 
-        return ResponseEntity.badRequest().body(body);
+        return ResponseEntity.badRequest().body(apiError);
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ApiError> handleGeneralException(
+            Exception ex,
+            HttpServletRequest request) {
+
+        log.error("Unexpected error occurred: ", ex);
+
+        ApiError apiError = new ApiError(
+                LocalDateTime.now(),
+                500,
+                "Internal Server Error",
+                List.of("An unexpected error occurred. Please try again later."),
+                request.getRequestURI()
+        );
+
+        return ResponseEntity
+                .status(500)
+                .body(apiError);
+    }
+    @ExceptionHandler(PassengerNotFoundException.class)
+    public ResponseEntity<ApiError> handlePassengerNotFoundException(
+            PassengerNotFoundException ex,
+            HttpServletRequest request) {
+
+        ApiError apiError = new ApiError(
+                LocalDateTime.now(),
+                404,
+                "Not Found",
+                List.of(ex.getMessage()),
+                request.getRequestURI()
+        );
+
+        return ResponseEntity.status(404).body(apiError);
     }
 }

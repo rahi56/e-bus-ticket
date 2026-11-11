@@ -5,7 +5,8 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-
+import jakarta.persistence.Column;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 @Entity
 public class Passenger {
 
@@ -15,9 +16,22 @@ public class Passenger {
 
     private String firstName;
     private String lastName;
+    @Column(nullable = false, unique = true)
     private String email;
     private String phone;
 
+
+    public String getPassword() {
+        return password;
+    }
+
+    public void setPassword(String password) {
+        this.password = password;
+    }
+
+    @Column(nullable = false)
+    @JsonIgnore
+    private String password;
     // Required by JPA
     public Passenger() {
     }

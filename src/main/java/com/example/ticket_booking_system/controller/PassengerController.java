@@ -1,11 +1,9 @@
 
 package com.example.ticket_booking_system.controller;
 
-import com.example.ticket_booking_system.dto.PassengerRequest;
 import com.example.ticket_booking_system.entity.Passenger;
 import com.example.ticket_booking_system.service.PassengerService;
-import jakarta.validation.Valid;
-import org.springframework.http.HttpStatus;
+
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -18,14 +16,6 @@ public class PassengerController {
 
     public PassengerController(PassengerService passengerService) {
         this.passengerService = passengerService;
-    }
-
-    // Create passenger
-    @PostMapping
-    @ResponseStatus(HttpStatus.CREATED)
-    public Passenger createPassenger(
-            @Valid @RequestBody PassengerRequest request) {
-        return passengerService.createPassenger(request);
     }
 
     // Get all passengers
@@ -44,13 +34,14 @@ public class PassengerController {
     @PutMapping("/{id}")
     public Passenger updatePassenger(
             @PathVariable Long id,
-            @Valid @RequestBody PassengerRequest request) {
+            @RequestBody com.example.ticket_booking_system.dto.PassengerRequest request) {
+
         return passengerService.updatePassenger(id, request);
     }
 
     // Delete passenger
     @DeleteMapping("/{id}")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
     public void deletePassenger(@PathVariable Long id) {
         passengerService.deletePassenger(id);
     }

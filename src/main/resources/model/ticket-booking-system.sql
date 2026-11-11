@@ -1,3 +1,3 @@
 
 show tables ;
-select *from booking;
+select * from passenger;

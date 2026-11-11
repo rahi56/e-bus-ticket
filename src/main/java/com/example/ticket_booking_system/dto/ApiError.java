@@ -2,13 +2,14 @@
 package com.example.ticket_booking_system.dto;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 public class ApiError {
 
     private LocalDateTime timestamp;
     private int status;
     private String error;
-    private String message;
+    private List<String> message;
     private String path;
 
     public ApiError() {
@@ -18,7 +19,7 @@ public class ApiError {
             LocalDateTime timestamp,
             int status,
             String error,
-            String message,
+            List<String> message,
             String path
     ) {
         this.timestamp = timestamp;
@@ -52,11 +53,11 @@ public class ApiError {
         this.error = error;
     }
 
-    public String getMessage() {
+    public List<String> getMessage() {
         return message;
     }
 
-    public void setMessage(String message) {
+    public void setMessage(List<String> message) {
         this.message = message;
     }
 
