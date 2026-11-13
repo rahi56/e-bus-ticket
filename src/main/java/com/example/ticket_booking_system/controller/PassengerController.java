@@ -7,6 +7,9 @@ import com.example.ticket_booking_system.service.PassengerService;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import com.example.ticket_booking_system.dto.PassengerResponse;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 
 @RestController
 @RequestMapping("/api/passengers")
@@ -44,5 +47,12 @@ public class PassengerController {
     @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
     public void deletePassenger(@PathVariable Long id) {
         passengerService.deletePassenger(id);
+    }
+    // Get the currently logged-in passenger's profile
+    @GetMapping("/me")
+    public PassengerResponse getMyProfile(
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        return passengerService.getMyProfile(userDetails.getUsername());
     }
 }

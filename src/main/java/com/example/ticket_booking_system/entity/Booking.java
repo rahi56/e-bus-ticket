@@ -9,6 +9,8 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 
 @Entity
 public class Booking {
@@ -28,7 +30,9 @@ public class Booking {
     private Trip trip;
 
     private String seatNumber;
-    private String status;
+
+    @Enumerated(EnumType.STRING)
+    private BookingStatus status;
 
     public Booking() {
     }
@@ -65,11 +69,11 @@ public class Booking {
         this.seatNumber = seatNumber;
     }
 
-    public String getStatus() {
+    public BookingStatus getStatus() {
         return status;
     }
 
-    public void setStatus(String status) {
+    public void setStatus(BookingStatus status) {
         this.status = status;
     }
 }

@@ -17,6 +17,7 @@ public class BookingResponse {
             Long tripId,
             String seatNumber,
             String status) {
+
         this.id = id;
         this.passengerId = passengerId;
         this.tripId = tripId;
@@ -30,7 +31,7 @@ public class BookingResponse {
                 booking.getPassenger().getId(),
                 booking.getTrip().getId(),
                 booking.getSeatNumber(),
-                booking.getStatus()
+                booking.getStatus().name()
         );
     }
 

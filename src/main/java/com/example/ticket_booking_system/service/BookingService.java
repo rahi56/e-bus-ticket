@@ -3,10 +3,13 @@ package com.example.ticket_booking_system.service;
 
 import com.example.ticket_booking_system.dto.BookingRequest;
 import com.example.ticket_booking_system.entity.Booking;
+import com.example.ticket_booking_system.entity.BookingStatus;
+import com.example.ticket_booking_system.entity.Bus;
 import com.example.ticket_booking_system.entity.Passenger;
 import com.example.ticket_booking_system.entity.Trip;
 import com.example.ticket_booking_system.exception.PassengerNotFoundException;
 import com.example.ticket_booking_system.repository.BookingRepository;
+import com.example.ticket_booking_system.repository.BusRepository;
 import com.example.ticket_booking_system.repository.PassengerRepository;
 import com.example.ticket_booking_system.repository.TripRepository;
 
@@ -21,20 +24,25 @@ import java.util.List;
 
 @Service
 public class BookingService {
+
     private static final Logger log =
             LoggerFactory.getLogger(BookingService.class);
+
     private final BookingRepository bookingRepository;
     private final PassengerRepository passengerRepository;
     private final TripRepository tripRepository;
+    private final BusRepository busRepository;
 
     public BookingService(
             BookingRepository bookingRepository,
             PassengerRepository passengerRepository,
-            TripRepository tripRepository) {
+            TripRepository tripRepository,
+            BusRepository busRepository) {
 
         this.bookingRepository = bookingRepository;
         this.passengerRepository = passengerRepository;
         this.tripRepository = tripRepository;
+        this.busRepository = busRepository;
     }
 
     // CREATE BOOKING
@@ -52,7 +60,6 @@ public class BookingService {
                         "Passenger not found with id: " + request.getPassengerId()
                 ));
 
-        // Lock the trip row until this transaction completes.
         Trip trip = tripRepository
                 .findByIdWithLock(request.getTripId())
                 .orElseThrow(() -> new ResponseStatusException(
@@ -60,13 +67,40 @@ public class BookingService {
                         "Trip not found with id: " + request.getTripId()
                 ));
 
-        // Reject an already-confirmed seat.
+        Bus bus = busRepository.findById(trip.getBusId())
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Bus not found with id: " + trip.getBusId()
+                ));
+
+        int seatNumber;
+
+        try {
+            seatNumber = Integer.parseInt(request.getSeatNumber());
+        } catch (NumberFormatException ex) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Seat number must be a valid number"
+            );
+        }
+
+        if (seatNumber < 1 || seatNumber > bus.getTotalSeats()) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Invalid seat number. Available seats are between 1 and "
+                            + bus.getTotalSeats()
+            );
+        }
+
+        String normalizedSeatNumber = String.valueOf(seatNumber);
+
         if (bookingRepository.existsByTrip_IdAndSeatNumberAndStatus(
                 trip.getId(),
-                request.getSeatNumber(),
-                "CONFIRMED")) {
+                normalizedSeatNumber,
+                BookingStatus.CONFIRMED)) {
+
             log.warn("Booking rejected: seat {} is already booked for trip ID {}",
-                    request.getSeatNumber(),
+                    normalizedSeatNumber,
                     trip.getId());
 
             throw new ResponseStatusException(
@@ -78,8 +112,8 @@ public class BookingService {
         Booking booking = new Booking();
         booking.setPassenger(passenger);
         booking.setTrip(trip);
-        booking.setSeatNumber(request.getSeatNumber());
-        booking.setStatus("CONFIRMED");
+        booking.setSeatNumber(normalizedSeatNumber);
+        booking.setStatus(BookingStatus.CONFIRMED);
 
         Booking savedBooking = bookingRepository.save(booking);
 
@@ -111,13 +145,64 @@ public class BookingService {
     @Transactional
     public Booking updateBooking(Long id, BookingRequest request) {
 
-        Booking booking = getBookingById(id);
+        Booking booking = bookingRepository.findByIdWithLock(id)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Booking not found with id: " + id
+                ));
 
-        if ("CANCELLED".equals(booking.getStatus())) {
+        if (booking.getStatus() == BookingStatus.CANCELLED) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "Cannot update a cancelled booking"
             );
+        }
+
+        // Identify the original and requested trips.
+        Long originalTripId = booking.getTrip().getId();
+        Long requestedTripId = request.getTripId();
+
+        // Lock both trips in ascending ID order.
+        Trip originalTrip;
+        Trip requestedTrip;
+
+        if (originalTripId.equals(requestedTripId)) {
+
+            originalTrip = tripRepository.findByIdWithLock(originalTripId)
+                    .orElseThrow(() -> new ResponseStatusException(
+                            HttpStatus.NOT_FOUND,
+                            "Trip not found with id: " + originalTripId
+                    ));
+
+            requestedTrip = originalTrip;
+
+        } else if (originalTripId < requestedTripId) {
+
+            originalTrip = tripRepository.findByIdWithLock(originalTripId)
+                    .orElseThrow(() -> new ResponseStatusException(
+                            HttpStatus.NOT_FOUND,
+                            "Trip not found with id: " + originalTripId
+                    ));
+
+            requestedTrip = tripRepository.findByIdWithLock(requestedTripId)
+                    .orElseThrow(() -> new ResponseStatusException(
+                            HttpStatus.NOT_FOUND,
+                            "Trip not found with id: " + requestedTripId
+                    ));
+
+        } else {
+
+            requestedTrip = tripRepository.findByIdWithLock(requestedTripId)
+                    .orElseThrow(() -> new ResponseStatusException(
+                            HttpStatus.NOT_FOUND,
+                            "Trip not found with id: " + requestedTripId
+                    ));
+
+            originalTrip = tripRepository.findByIdWithLock(originalTripId)
+                    .orElseThrow(() -> new ResponseStatusException(
+                            HttpStatus.NOT_FOUND,
+                            "Trip not found with id: " + originalTripId
+                    ));
         }
 
         Passenger passenger = passengerRepository
@@ -128,21 +213,41 @@ public class BookingService {
                                 + request.getPassengerId()
                 ));
 
-        // Lock the requested trip row.
-        Trip trip = tripRepository
-                .findByIdWithLock(request.getTripId())
+        // Get the bus for the requested trip.
+        Bus bus = busRepository.findById(requestedTrip.getBusId())
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
-                        "Trip not found with id: " + request.getTripId()
+                        "Bus not found with id: " + requestedTrip.getBusId()
                 ));
 
-        // Exclude this booking when checking for duplicate seats.
-        if (bookingRepository
-                .existsByTrip_IdAndSeatNumberAndStatusAndIdNot(
-                        trip.getId(),
-                        request.getSeatNumber(),
-                        "CONFIRMED",
-                        id)) {
+        // Validate the requested seat.
+        int seatNumber;
+
+        try {
+            seatNumber = Integer.parseInt(request.getSeatNumber());
+        } catch (NumberFormatException ex) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Seat number must be a valid number"
+            );
+        }
+
+        if (seatNumber < 1 || seatNumber > bus.getTotalSeats()) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Invalid seat number. Available seats are between 1 and "
+                            + bus.getTotalSeats()
+            );
+        }
+
+        String normalizedSeatNumber = String.valueOf(seatNumber);
+
+        // Check whether another confirmed booking owns this seat.
+        if (bookingRepository.existsByTrip_IdAndSeatNumberAndStatusAndIdNot(
+                requestedTrip.getId(),
+                normalizedSeatNumber,
+                BookingStatus.CONFIRMED,
+                id)) {
 
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
@@ -151,8 +256,8 @@ public class BookingService {
         }
 
         booking.setPassenger(passenger);
-        booking.setTrip(trip);
-        booking.setSeatNumber(request.getSeatNumber());
+        booking.setTrip(requestedTrip);
+        booking.setSeatNumber(normalizedSeatNumber);
 
         return bookingRepository.save(booking);
     }
@@ -161,27 +266,32 @@ public class BookingService {
     @Transactional
     public Booking cancelBooking(Long id) {
 
-        Booking booking = getBookingById(id);
+        Booking booking = bookingRepository.findByIdWithLock(id)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Booking not found with id: " + id
+                ));
 
         Long tripId = booking.getTrip().getId();
 
-        // Lock the trip row before changing booking status.
         tripRepository.findByIdWithLock(tripId)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
                         "Trip not found with id: " + tripId
                 ));
 
-        if ("CANCELLED".equals(booking.getStatus())) {
+        if (booking.getStatus() == BookingStatus.CANCELLED) {
             log.warn("Booking ID: {} is already cancelled", id);
+
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "Booking is already cancelled"
             );
         }
+
         log.info("Cancelling booking ID: {}", id);
 
-        booking.setStatus("CANCELLED");
+        booking.setStatus(BookingStatus.CANCELLED);
 
         Booking cancelledBooking = bookingRepository.save(booking);
 

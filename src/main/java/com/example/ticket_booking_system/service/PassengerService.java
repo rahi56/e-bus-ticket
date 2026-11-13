@@ -5,7 +5,7 @@ import com.example.ticket_booking_system.dto.PassengerRequest;
 import com.example.ticket_booking_system.dto.RegisterRequest;
 import com.example.ticket_booking_system.entity.Passenger;
 import com.example.ticket_booking_system.repository.PassengerRepository;
-
+import com.example.ticket_booking_system.dto.PassengerResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -104,5 +104,21 @@ public class PassengerService {
         }
 
         return passenger;
+    }
+    public PassengerResponse getMyProfile(String email) {
+
+        Passenger passenger = passengerRepository.findByEmail(email)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Passenger not found"
+                ));
+
+        return new PassengerResponse(
+                passenger.getId(),
+                passenger.getFirstName(),
+                passenger.getLastName(),
+                passenger.getEmail(),
+                passenger.getPhone()
+        );
     }
 }

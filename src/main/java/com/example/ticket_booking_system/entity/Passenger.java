@@ -1,11 +1,7 @@
 
 package com.example.ticket_booking_system.entity;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Column;
+import jakarta.persistence.*;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 @Entity
 public class Passenger {
@@ -20,6 +16,17 @@ public class Passenger {
     private String email;
     private String phone;
 
+    public Role getRole() {
+        return role;
+    }
+
+    public void setRole(Role role) {
+        this.role = role;
+    }
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private Role role=Role.PASSENGER;
 
     public String getPassword() {
         return password;
